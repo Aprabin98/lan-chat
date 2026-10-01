@@ -8,6 +8,10 @@ A single-file LAN chat and file-sharing app with zero external dependencies (pur
 - **Chats** — 1:1 DMs, group chats, a `General` room for everyone, and private `My Notes` per user.
 - **Messenger behavior** — bubbles, replies, copy, read-more for long messages, per-conversation unread counts, `Delete for me` (per message or whole chat) and owner `Unsend / Delete group for everyone`.
 - **Chat extras** — http/https links auto-linkify, chat pinning to top, tab unread counter + favicon badge that sticks until the chat is viewed, notification sound with mute toggle, dark / light mode.
+- **Live connection** — WebSocket (`/ws`) pushes new messages, game moves, note edits and call signals instantly (green dot in the sidebar); the old 1.3 s polling stays as automatic fallback.
+- **Game hub** — tic-tac-toe vs an easy/random or hard/minimax bot, or vs a friend by conversation invite; results post into the chat.
+- **Live notes** — shared documents per conversation with live sync, versioned saves (stale writes get a 409 + reload offer) and a live viewers line.
+- **Voice/video calls** — 1:1 calls in DMs over WebRTC (peer-to-peer, works on plain LAN with no STUN); missed and timed calls post into the chat.
 - **Attachments** — private per-conversation chat files (member-only download, image preview) separate from the public Files tab.
 - **Files tab** — drag-and-drop upload, download, delete, human sizes, per-type icons.
 - **Profiles** — display name, email, avatar upload (PNG/JPG/GIF/WEBP, magic-byte checked, 2 MB max).
@@ -92,6 +96,10 @@ shaare/
     server.py       # HTTP handler (pages, JSON API, uploads)
     cli.py          # terminal commands (status/users/convs/send/...)
     main.py         # entry flow: CLI dispatch or HTTP server
+    realtime.py     # WebSocket endpoint + broadcast hub (stdlib RFC 6455)
+    games.py        # tic-tac-toe engine, bot, invites (data/games.json)
+    livenotes.py    # shared live documents (data/livenotes.json)
+    calls.py        # 1:1 call signaling, WebRTC relay (in-memory only)
   share/            # public shared files (Files tab) — runtime, git-ignored
   data/             # private state — runtime, git-ignored
     users.json sessions.json convs.json messages.json
@@ -104,6 +112,7 @@ Legacy dotfiles (`.lanchat_*.json`) from older layouts auto-migrate into `data/`
 
 - **Deleting a 1:1 chat** removes it for you only; old messages stay hidden and only new arrivals reappear.
 - **Unread badges** clear only when you actually view the chat — switching tabs, minimizing, or sitting on Files/Profile keeps the tab counter until you return.
+- **Calls** are peer-to-peer WebRTC with host candidates: perfect on LAN, no server bandwidth used. Internet/NAT calls need a TURN server (not bundled); group calls are 1:1-only by design.
 - **Passwords** are stored as salted PBKDF2-SHA256 hashes. Changing your password signs out your other devices; an owner password reset signs that user out everywhere.
 - **Chat history** is capped at 500 messages per conversation (oldest trimmed, orphaned private files cleaned up).
 - Stop with `Ctrl+C`.

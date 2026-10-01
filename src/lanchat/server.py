@@ -8,7 +8,7 @@ import time
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import chat, config, store, ui, users, utils
+from . import calls, chat, config, games, livenotes, realtime, store, ui, users, utils
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "LANShareChat/2.0"
@@ -78,6 +78,18 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
+        if path == "/ws":
+            # Real-time socket (RFC 6455). Auth via the session cookie.
+            if (self.headers.get("Upgrade", "") or "").lower() != "websocket":
+                self.send_error(400, "WebSocket upgrade required")
+                return
+            user = self._current_user()
+            if not user:
+                self.send_error(401, "Not signed in")
+                return
+            realtime.serve_ws(self, user["username"].lower())
+            return
+
         if path in ("/", ""):
             self._send_html(ui.render_index(self._current_user()))
             return
@@ -126,6 +138,27 @@ class Handler(BaseHTTPRequestHandler):
             if not self._require_user():
                 return
             self._send_json(ui.list_shared_files())
+            return
+
+        if path == "/api/games":
+            user = self._require_user()
+            if not user:
+                return
+            self._send_json(games.list_games(user["username"].lower()))
+            return
+
+        if path == "/api/livenotes":
+            user = self._require_user()
+            if not user:
+                return
+            qs = parse_qs(parsed.query)
+            conv_id = qs.get("conv", [""])[0]
+            me = user["username"].lower()
+            if conv_id:
+                ok, res = livenotes.get_or_create_conv_note(me, conv_id)
+                self._send_json(res, 200 if ok else 403)
+            else:
+                self._send_json(livenotes.list_notes(me))
             return
 
         if path.startswith("/avatar/"):
@@ -442,7 +475,99 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 reply = None
             msg = chat.add_message(conv_id, user["username"].lower(), text, reply=reply)
+            realtime.notify_message(conv_id, msg)
             self._send_json(msg)
+            return
+
+        if self.path == "/api/games/create":
+            user = self._require_user()
+            if not user:
+                return
+            data = self._json_body()
+            if data is None:
+                self._send_json({"error": "Bad JSON"}, 400)
+                return
+            ok, res = games.create_game(
+                user["username"].lower(),
+                mode=str(data.get("mode") or "bot"),
+                level=str(data.get("level") or "hard"),
+                conv=str(data.get("conv") or "") or None,
+                opponent=data.get("opponent"))
+            if ok:
+                realtime.notify_game(res)
+                self._send_json(res)
+            else:
+                self._send_json({"error": res}, 400)
+            return
+
+        if self.path == "/api/games/accept":
+            user = self._require_user()
+            if not user:
+                return
+            data = self._json_body()
+            if data is None:
+                self._send_json({"error": "Bad JSON"}, 400)
+                return
+            ok, res = games.accept_game(user["username"].lower(), str(data.get("id", "")))
+            if ok:
+                realtime.notify_game(res)
+                self._send_json(res)
+            else:
+                self._send_json({"error": res}, 400)
+            return
+
+        if self.path == "/api/games/move":
+            user = self._require_user()
+            if not user:
+                return
+            data = self._json_body()
+            if data is None:
+                self._send_json({"error": "Bad JSON"}, 400)
+                return
+            ok, res = games.make_move(user["username"].lower(),
+                                      str(data.get("id", "")), data.get("pos"))
+            if ok:
+                realtime.notify_game(res)
+                self._send_json(res)
+            else:
+                self._send_json({"error": res}, 400)
+            return
+
+        if self.path == "/api/games/forfeit":
+            user = self._require_user()
+            if not user:
+                return
+            data = self._json_body()
+            if data is None:
+                self._send_json({"error": "Bad JSON"}, 400)
+                return
+            ok, res = games.forfeit(user["username"].lower(), str(data.get("id", "")))
+            if ok:
+                realtime.notify_game(res)
+                self._send_json(res)
+            else:
+                self._send_json({"error": res}, 400)
+            return
+
+        if self.path == "/api/livenotes/save":
+            user = self._require_user()
+            if not user:
+                return
+            data = self._json_body()
+            if data is None:
+                self._send_json({"error": "Bad JSON"}, 400)
+                return
+            ok, res, conflicted = livenotes.save_note(
+                user["username"].lower(), str(data.get("id", "")),
+                data.get("text", ""), data.get("base_version"),
+                title=data.get("title"))
+            if ok:
+                self._send_json(res)
+            elif conflicted:
+                self._send_json({"error": "Edited elsewhere — reload to merge",
+                                 "conflict": True, "note": res}, 409)
+            else:
+                self._send_json({"error": res}, 400)
             return
 
         if self.path == "/api/read":
@@ -660,9 +785,10 @@ class Handler(BaseHTTPRequestHandler):
                 dest = os.path.join(store.CHATFILES_DIR, stored)
                 with open(dest, "wb") as f:
                     f.write(p["data"])
-                chat.add_message(conv_field, user["username"].lower(), "", msg_type="file",
+                msg = chat.add_message(conv_field, user["username"].lower(), "", msg_type="file",
                             file=orig, size=len(p["data"]),
                             private=True, stored=stored)
+                realtime.notify_message(conv_field, msg)
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
             self.end_headers()

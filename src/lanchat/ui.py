@@ -448,6 +448,83 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
   .convPinBtn.pinned { opacity: 1; }
   .convPinBtn:hover { background: rgba(255,255,255,0.1); }
 
+  /* ---------------- Live / games / notes / calls ---------------- */
+  .liveDot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+             background: #ffb020; display: inline-block; margin-right: 6px; }
+  .liveDot.on { background: var(--success); box-shadow: 0 0 6px var(--success); }
+  .sideFoot { display: flex; align-items: center; }
+  .sideFoot #sideFootTxt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .gameCard {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 16px; backdrop-filter: blur(10px); margin-bottom: 14px;
+  }
+  .gameTop { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .gameTop b { font-size: 0.92rem; }
+  .gameStatus { font-size: 0.72rem; color: var(--muted); }
+  .gameStatus.yourTurn { color: var(--success); font-weight: 700; }
+  .tttBoard { display: grid; grid-template-columns: repeat(3, 64px); gap: 8px; margin: 6px 0 10px; }
+  .tttCell {
+    width: 64px; height: 64px; border-radius: 14px; border: 1px solid var(--border);
+    background: var(--input-bg); color: var(--text); font-size: 1.7rem; font-weight: 700;
+    cursor: pointer; transition: transform .1s, border-color .15s;
+  }
+  .tttCell:hover:not(:disabled) { transform: scale(1.04); border-color: var(--accent); }
+  .tttCell:disabled { cursor: default; opacity: 0.9; }
+  .tttCell.win { border-color: var(--success); box-shadow: 0 0 10px rgba(76,224,166,0.4); }
+  .gameRowBtns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chipBtn {
+    padding: 7px 14px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+  }
+  .chipBtn:hover { border-color: var(--accent); }
+  .chipBtn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border: none; }
+  .chipBtn.danger:hover { color: var(--danger); border-color: rgba(255,107,107,0.5); }
+
+  .noteCard {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 0; backdrop-filter: blur(10px); margin-bottom: 14px; overflow: hidden;
+  }
+  .noteHead { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .noteTitle { flex: 1; min-width: 0; font-weight: 650; font-size: 0.92rem;
+               background: none; border: none; outline: none; color: var(--text); }
+  .noteViewers { font-size: 0.7rem; color: var(--success); }
+  .noteText {
+    width: 100%; min-height: 220px; resize: vertical; padding: 14px;
+    background: transparent; border: none; outline: none; color: var(--text);
+    font-size: 0.9rem; line-height: 1.55; font-family: inherit;
+  }
+  .noteFoot { display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+              border-top: 1px solid var(--border); font-size: 0.72rem; color: var(--muted); }
+  .noteConflict { background: rgba(255,107,107,0.12); border: 1px solid rgba(255,107,107,0.4);
+                  border-radius: 10px; padding: 8px 12px; margin: 0 14px 12px;
+                  font-size: 0.78rem; display: none; align-items: center; gap: 8px; }
+
+  #callOverlay {
+    position: fixed; inset: 0; z-index: 70; display: none;
+    align-items: center; justify-content: center; padding: 20px;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(6px);
+  }
+  #callOverlay.on { display: flex; }
+  .callCard {
+    width: 100%; max-width: 560px; background: var(--card-solid);
+    border: 1px solid var(--border); border-radius: 22px; padding: 20px;
+    text-align: center; box-shadow: var(--shadow);
+  }
+  .callVideos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .callVideos video { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 14px; background: #000; }
+  .callVideos audio { display: none; }
+  .callName { font-size: 1.05rem; font-weight: 650; }
+  .callState { font-size: 0.8rem; color: var(--muted); margin: 4px 0 14px; }
+  .callBtns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .callBtn {
+    min-width: 52px; height: 52px; border-radius: 50%; border: none; cursor: pointer; font-size: 1.3rem;
+    background: var(--card); border: 1px solid var(--border); color: var(--text);
+  }
+  .callBtn.off { background: rgba(255,107,107,0.2); border-color: rgba(255,107,107,0.5); }
+  .callBtn.hangup { background: #e5484d; color: #fff; }
+  .callBtn.accept { background: #0ca678; color: #fff; }
+
   /* ---------------- Small screens ---------------- */
   @media (max-width: 780px) {
     #app.on { display: flex; flex-direction: column; grid-template-columns: none; }
@@ -474,6 +551,9 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
     .modalCard { margin: 0 4px; padding: 16px; }
     .fileCard .fName { max-width: 150px; }
     .filePreview { max-width: 170px; max-height: 170px; }
+    .tttBoard { grid-template-columns: repeat(3, 56px); }
+    .tttCell { width: 56px; height: 56px; }
+    .callVideos { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -512,6 +592,8 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
 
     <div class="nav">
       <button class="navBtn active" data-view="chats">💬 Chats</button>
+      <button class="navBtn" data-view="games">🎮 Games</button>
+      <button class="navBtn" data-view="notes">📝 Notes</button>
       <button class="navBtn" data-view="files">📁 Files</button>
       <button class="navBtn" data-view="profile">👤 Profile</button>
       <button class="navBtn" data-view="admin" id="adminNav" style="display:none">⚙️ Admin</button>
@@ -527,7 +609,7 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
       <div class="convList" id="convList"></div>
     </div>
 
-    <div class="sideFoot" id="sideFoot"></div>
+    <div class="sideFoot"><span class="liveDot" id="liveDot" title="Live connection"></span><span id="sideFootTxt"></span></div>
   </aside>
 
   <main class="main">
@@ -548,6 +630,8 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
             <div class="headSub" id="headSub"></div>
           </div>
           <div class="headActions">
+            <button class="iconBtn" id="voiceBtn" type="button" title="Voice call" style="display:none">📞</button>
+            <button class="iconBtn" id="videoBtn" type="button" title="Video call" style="display:none">🎥</button>
             <button class="iconBtn" id="chatMenuBtn" type="button" title="Conversation options">⋯</button>
           </div>
         </header>
@@ -565,6 +649,32 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
           <textarea id="chatInput" rows="1" placeholder="Type a message… (Shift+Enter for a new line)"></textarea>
           <button id="sendBtn" type="submit">Send</button>
         </form>
+      </div>
+    </section>
+
+    <!-- ---------- Games ---------- -->
+    <section id="gamesView" class="view">
+      <div class="scrollArea">
+        <h2 class="vTitle">🎮 Game hub — tic-tac-toe</h2>
+        <div class="gameCard">
+          <div class="gameTop"><b>New game</b></div>
+          <div class="gameRowBtns">
+            <button class="chipBtn primary" id="botEasyBtn" type="button">🤖 Bot · easy</button>
+            <button class="chipBtn primary" id="botHardBtn" type="button">🤖 Bot · hard</button>
+            <button class="chipBtn" id="friendGameBtn" type="button">👥 Vs friend</button>
+          </div>
+          <p class="hint">Bot games start instantly. Friend games send an invite — first to accept joins. Finished games post the result into the chat.</p>
+        </div>
+        <div id="gamesList"></div>
+      </div>
+    </section>
+
+    <!-- ---------- Live notes ---------- -->
+    <section id="notesView" class="view">
+      <div class="scrollArea">
+        <h2 class="vTitle">📝 Live notes</h2>
+        <p class="hint" style="margin-top:-8px">Shared documents that update live for everyone in the conversation. Open one to edit together.</p>
+        <div id="notesList"></div>
       </div>
     </section>
 
@@ -693,6 +803,23 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
       </div>
     </section>
   </main>
+</div>
+
+<div id="callOverlay">
+  <div class="callCard">
+    <div class="callVideos" id="callVideos" style="display:none">
+      <video id="remoteVideo" autoplay playsinline></video>
+      <video id="localVideo" autoplay playsinline muted></video>
+    </div>
+    <div class="callName" id="callName">—</div>
+    <div class="callState" id="callState">Calling…</div>
+    <div class="callBtns">
+      <button class="callBtn accept" id="callAcceptBtn" type="button" title="Accept" style="display:none">📞</button>
+      <button class="callBtn" id="callMuteBtn" type="button" title="Mute">🎤</button>
+      <button class="callBtn" id="callCamBtn" type="button" title="Camera">🎥</button>
+      <button class="callBtn hangup" id="callHangupBtn" type="button" title="Hang up">📵</button>
+    </div>
+  </div>
 </div>
 
 <div id="modal"><div class="modalCard" id="modalCard"></div></div>
@@ -966,6 +1093,8 @@ function showView(name) {
   try { localStorage.setItem('lanchat_view', name); } catch (e) {}
   if (name === 'files') loadFiles();
   if (name === 'profile') renderProfile();
+  if (name === 'games') loadGames();
+  if (name === 'notes') loadNotes();
   // Coming back to the chat pane means the open conversation is viewed:
   // flush the pending read receipt so its badge clears now, not a tick later.
   if (name === 'chats' && activeConv && !document.hidden) {
@@ -1097,6 +1226,10 @@ function renderHeader(c) {
           (sub ? ' · ' + sub : '');
   }
   $('headSub').textContent = sub;
+  // Voice/video calls are 1:1 (DM) only — WebRTC mesh for groups is out of scope.
+  const canCall = c.type === 'dm';
+  $('voiceBtn').style.display = canCall ? '' : 'none';
+  $('videoBtn').style.display = canCall ? '' : 'none';
 }
 
 async function openConv(id) {
@@ -1780,6 +1913,7 @@ function openChatMenu() {
     html += '<button class="btn block" type="button" id="clearNotesBtn" style="background:linear-gradient(135deg,#ff6b6b,#ff9b6c)">Clear all notes (for me)</button>';
   } else {
     html += '<button class="btn block" type="button" id="pinConvBtn" style="margin-bottom:8px">' + (c.pinned ? '📌 Unpin chat' : '📌 Pin chat to top') + '</button>';
+    html += '<button class="btn block" type="button" id="liveNoteBtn" style="margin-bottom:8px">📝 Shared live note</button>';
     html += '<button class="btn block" type="button" id="hideConvBtn" style="margin-bottom:8px">Delete chat (for me)</button>';
     if (isGroup && USER.role === 'owner') {
       html += '<button class="btn block" type="button" id="delGroupBtn" style="background:linear-gradient(135deg,#ff6b6b,#ff9b6c)">Delete group for everyone</button>';
@@ -1790,6 +1924,19 @@ function openChatMenu() {
     }
   }
   showModal(html);
+  const liveNoteBtn = $('liveNoteBtn');
+  if (liveNoteBtn) liveNoteBtn.addEventListener('click', async () => {
+    try {
+      const r = await fetch('/api/livenotes?conv=' + encodeURIComponent(activeConv));
+      const d = await r.json();
+      if (!r.ok) { toast(d.error || 'Could not open note', false); return; }
+      hideModal();
+      const i = NOTES.findIndex(x => x.id === d.id);
+      if (i >= 0) NOTES[i] = d; else NOTES.unshift(d);
+      showView('notes');
+      openNote(d.id);
+    } catch (e) { toast('Could not open note', false); }
+  });
   const pinBtn = $('pinConvBtn');
   if (pinBtn) pinBtn.addEventListener('click', async () => {
     try {
@@ -1844,6 +1991,33 @@ function wire() {
   $('convSearch').addEventListener('input', renderConvs);
   $('backBtn').addEventListener('click', closeChat);
   $('chatMenuBtn').addEventListener('click', openChatMenu);
+  $('voiceBtn').addEventListener('click', () => startCall('voice'));
+  $('videoBtn').addEventListener('click', () => startCall('video'));
+  $('callAcceptBtn').addEventListener('click', acceptCall);
+  $('callHangupBtn').addEventListener('click', () => {
+    if (callState && callState.phase === 'incoming') declineCall();
+    else endCall();
+  });
+  $('callMuteBtn').addEventListener('click', () => {
+    if (!callState || !callState.stream) return;
+    callState.muted = !callState.muted;
+    callState.stream.getAudioTracks().forEach(tr => { tr.enabled = !callState.muted; });
+    updateCallBtns();
+  });
+  $('callCamBtn').addEventListener('click', () => {
+    if (!callState || !callState.stream) return;
+    callState.camOff = !callState.camOff;
+    callState.stream.getVideoTracks().forEach(tr => { tr.enabled = !callState.camOff; });
+    updateCallBtns();
+  });
+  window.addEventListener('beforeunload', () => {
+    if (callState && callState.call) wsSend({t: 'call.end', call: callState.call.id});
+    if (openNoteId) saveOpenNote(true);
+  });
+  $('botEasyBtn').addEventListener('click', () => newBotGame('easy'));
+  $('botHardBtn').addEventListener('click', () => newBotGame('hard'));
+  $('friendGameBtn').addEventListener('click', openFriendGameModal);
+  connectWS();
   updateSoundBtn();
   applyTheme(getTheme());
   const th = $('themeBtn');
@@ -1908,6 +2082,664 @@ function renderMe() {
 
 function rememberedView() {
   const v = localStorage.getItem('lanchat_view');
+  if (v === 'files' || v === 'profile' || v === 'games' || v === 'notes') return v;
+  if (v === 'admin' && USER && USER.role === 'owner') return v;
+  return 'chats';
+}
+
+/* ================= realtime socket ================= */
+let ws = null, wsTimer = null;
+function wsLive(on) {
+  const d = $('liveDot');
+  if (d) {
+    d.classList.toggle('on', !!on);
+    d.title = on ? 'Live connection' : 'Connecting… (polling fallback active)';
+  }
+}
+function wsSend(obj) {
+  try {
+    if (ws && ws.readyState === 1) { ws.send(JSON.stringify(obj)); return true; }
+  } catch (e) {}
+  return false;
+}
+function connectWS() {
+  if (!USER) return;
+  try { if (ws) ws.close(); } catch (e) {}
+  clearTimeout(wsTimer);
+  let proto = 'ws';
+  try { proto = location.protocol === 'https:' ? 'wss' : 'ws'; } catch (e) {}
+  try {
+    ws = new WebSocket(proto + '://' + location.host + '/ws');
+  } catch (e) { wsLive(false); wsTimer = setTimeout(connectWS, 5000); return; }
+  ws.onopen = () => { wsLive(true); if (openNoteId) wsSend({t: 'note.open', note: openNoteId}); };
+  ws.onclose = () => { wsLive(false); wsTimer = setTimeout(connectWS, 3000); };
+  ws.onerror = () => { try { ws.close(); } catch (e) {} };
+  ws.onmessage = (ev) => {
+    let d = null;
+    try { d = JSON.parse(ev.data); } catch (e) { return; }
+    if (!d || !d.t) return;
+    if (d.t === 'conv.message') {
+      if (d.conv === activeConv) fetchMsgs();
+      else refreshConvs();
+      return;
+    }
+    if (d.t === 'game.state') { onGameEvent(d.game); return; }
+    if (d.t === 'note.state') { onNoteEvent(d.note); return; }
+    if (d.t === 'note.presence') { onNotePresence(d.note, d.viewers); return; }
+    if (d.t && d.t.indexOf('call.') === 0) { onCallEvent(d); return; }
+  };
+}
+
+/* ================= game hub ================= */
+let GAMES = [];
+function myKey() { return (USER.username || '').toLowerCase(); }
+function gameTitle(g) {
+  const names = (g.players || []).map(p => {
+    const u = USERS.find(x => (x.username || '').toLowerCase() === p);
+    return u ? u.name : p;
+  });
+  if (g.mode === 'bot') return 'Vs ' + (g.level === 'easy' ? 'easy bot' : 'hard bot');
+  return names.join(' vs ') || 'Friend game';
+}
+function gameStatusText(g) {
+  if (g.status === 'waiting') return 'Waiting for opponent…';
+  if (g.status === 'win') {
+    const w = Object.keys(g.marks || {}).find(p => g.marks[p] === g.winner);
+    const u = USERS.find(x => (x.username || '').toLowerCase() === w);
+    return '🏆 ' + (u ? u.name : w) + ' wins';
+  }
+  if (g.status === 'draw') return 'Draw';
+  if (g.turn === myKey()) return 'Your turn';
+  const u = USERS.find(x => (x.username || '').toLowerCase() === g.turn);
+  return 'Waiting on ' + (u ? u.name : g.turn) + '…';
+}
+function winLine(board) {
+  const L = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  for (const l of L) {
+    const v = board[l[0]];
+    if (v && board[l[1]] === v && board[l[2]] === v) return l;
+  }
+  return [];
+}
+async function loadGames() {
+  try {
+    const r = await fetch('/api/games');
+    if (!r.ok) return;
+    GAMES = await r.json();
+    renderGames();
+  } catch (e) {}
+}
+function renderGames() {
+  const el = $('gamesList');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!GAMES.length) {
+    el.innerHTML = '<div class="empty">No games yet — start one above.</div>';
+    return;
+  }
+  for (const g of GAMES) {
+    const card = document.createElement('div');
+    card.className = 'gameCard';
+    const mine = g.turn === myKey() && g.status === 'playing';
+    const line = winLine(g.board || []);
+    const top = document.createElement('div');
+    top.className = 'gameTop';
+    top.innerHTML = '<b>' + esc(gameTitle(g)) + '</b>' +
+      '<span class="gameStatus' + (mine ? ' yourTurn' : '') + '">' + esc(gameStatusText(g)) + '</span>';
+    card.appendChild(top);
+    const board = document.createElement('div');
+    board.className = 'tttBoard';
+    (g.board || []).forEach((cell, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tttCell' + (line.indexOf(i) >= 0 ? ' win' : '');
+      b.textContent = cell || '';
+      b.disabled = !(mine && !cell);
+      if (mine && !cell) b.addEventListener('click', () => gameMove(g.id, i));
+      board.appendChild(b);
+    });
+    card.appendChild(board);
+    const row = document.createElement('div');
+    row.className = 'gameRowBtns';
+    if (g.status === 'waiting' && g.players[0] !== myKey()) {
+      const a = document.createElement('button');
+      a.type = 'button'; a.className = 'chipBtn primary'; a.textContent = 'Accept & play';
+      a.addEventListener('click', () => gameAccept(g.id));
+      row.appendChild(a);
+    }
+    if (g.status === 'playing') {
+      const f = document.createElement('button');
+      f.type = 'button'; f.className = 'chipBtn danger'; f.textContent = 'Forfeit';
+      f.addEventListener('click', () => gameForfeit(g.id));
+      row.appendChild(f);
+    }
+    if (g.status === 'win' || g.status === 'draw') {
+      const r = document.createElement('button');
+      r.type = 'button'; r.className = 'chipBtn'; r.textContent = 'Rematch';
+      r.addEventListener('click', () => gameRematch(g));
+      row.appendChild(r);
+    }
+    if (row.children.length) card.appendChild(row);
+    el.appendChild(card);
+  }
+}
+function onGameEvent(g) {
+  if (!g) return;
+  const prev = GAMES.find(x => x.id === g.id);
+  GAMES = [g].concat(GAMES.filter(x => x.id !== g.id));
+  GAMES.sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  if ($('app').dataset.view === 'games') renderGames();
+  if (!prev) {
+    if (g.status === 'waiting' && g.players[0] !== myKey()) toast('New game invite', true);
+  } else if (g.turn === myKey() && prev.turn !== myKey() && g.status === 'playing') {
+    toast('Your move in tic-tac-toe', true);
+    playNotify();
+  } else if ((g.status === 'win' || g.status === 'draw') && prev.status === 'playing') {
+    toast(gameStatusText(g), true);
+  }
+  refreshConvs();
+}
+async function newBotGame(level) {
+  try {
+    const r = await api('/api/games/create', {mode: 'bot', level: level});
+    const d = await r.json();
+    if (!r.ok) { toast(d.error || 'Could not start', false); return; }
+    onGameEvent(d);
+    showView('games');
+  } catch (e) { toast('Could not start', false); }
+}
+function openFriendGameModal() {
+  const playable = CONVS.filter(c => c.type !== 'notes');
+  let html = modalHead('Vs friend');
+  html += '<div class="modalField"><label>Conversation (members can watch)</label></div>';
+  if (!playable.length) html += '<div class="empty">No conversations yet.</div>';
+  for (const c of playable) {
+    html += '<div class="pickRow" data-conv="' + esc(c.id) + '">' +
+            '<div class="pickMeta"><b>' + esc(c.title) + '</b><span>' +
+            esc((c.members || []).join(', ')) + '</span></div></div>';
+  }
+  showModal(html);
+  $('modalCard').querySelectorAll('.pickRow').forEach(row => {
+    row.addEventListener('click', async () => {
+      try {
+        const r = await api('/api/games/create', {mode: 'friend', conv: row.dataset.conv});
+        const d = await r.json();
+        if (!r.ok) { toast(d.error || 'Could not start', false); return; }
+        hideModal();
+        onGameEvent(d);
+        showView('games');
+        toast('Invite sent — first to accept joins', true);
+      } catch (e) { toast('Could not start', false); }
+    });
+  });
+}
+async function gameMove(id, pos) {
+  try {
+    const r = await api('/api/games/move', {id: id, pos: pos});
+    const d = await r.json();
+    if (!r.ok) { toast(d.error || 'Illegal move', false); await loadGames(); return; }
+    onGameEvent(d);
+  } catch (e) { toast('Could not move', false); }
+}
+async function gameAccept(id) {
+  try {
+    const r = await api('/api/games/accept', {id: id});
+    const d = await r.json();
+    if (!r.ok) { toast(d.error || 'Could not join', false); return; }
+    onGameEvent(d);
+  } catch (e) { toast('Could not join', false); }
+}
+async function gameForfeit(id) {
+  if (!confirm('Forfeit this game?')) return;
+  try {
+    const r = await api('/api/games/forfeit', {id: id});
+    const d = await r.json();
+    if (!r.ok) { toast(d.error || 'Could not forfeit', false); return; }
+    onGameEvent(d);
+  } catch (e) { toast('Could not forfeit', false); }
+}
+async function gameRematch(g) {
+  try {
+    const payload = g.mode === 'bot'
+      ? {mode: 'bot', level: g.level || 'hard'}
+      : {mode: 'friend', conv: g.conv};
+    const r = await api('/api/games/create', payload);
+    const d = await r.json();
+    if (!r.ok) { toast(d.error || 'Could not start', false); return; }
+    onGameEvent(d);
+  } catch (e) { toast('Could not start', false); }
+}
+
+/* ================= live notes ================= */
+let NOTES = [];
+let openNoteId = null, noteBase = 0, noteTimer = null, pendingRemote = null, noteHeartbeat = null;
+function noteName(key) {
+  const u = USERS.find(x => (x.username || '').toLowerCase() === (key || '').toLowerCase());
+  return u ? u.name : (key || '?');
+}
+async function loadNotes() {
+  try {
+    const r = await fetch('/api/livenotes');
+    if (!r.ok) return;
+    NOTES = await r.json();
+    renderNotes();
+  } catch (e) {}
+}
+function renderNotes() {
+  const el = $('notesList');
+  if (!el) return;
+  el.innerHTML = '';
+  if (openNoteId) {
+    const n = NOTES.find(x => x.id === openNoteId);
+    if (n) { renderNoteEditor(el, n); return; }
+    openNoteId = null;
+  }
+  if (!NOTES.length) {
+    el.innerHTML = '<div class="empty">No shared notes yet.<br>Open any chat and use ⋯ → Shared live note.</div>';
+    return;
+  }
+  for (const n of NOTES) {
+    const card = document.createElement('div');
+    card.className = 'gameCard';
+    card.innerHTML = '<div class="gameTop"><b>' + esc(n.title || 'Untitled') + '</b>' +
+      '<span class="gameStatus">' + esc((n.text || '').slice(0, 90)) + '</span></div>' +
+      '<div class="gameStatus">v' + (n.version || 1) + ' · ' + esc(noteName(n.updated_by)) + '</div>';
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'chipBtn primary'; btn.textContent = 'Open & edit live';
+    btn.addEventListener('click', () => openNote(n.id));
+    const row = document.createElement('div');
+    row.className = 'gameRowBtns';
+    row.appendChild(btn);
+    card.appendChild(row);
+    el.appendChild(card);
+  }
+}
+function renderNoteEditor(el, n) {
+  const card = document.createElement('div');
+  card.className = 'noteCard';
+  const head = document.createElement('div');
+  head.className = 'noteHead';
+  const title = document.createElement('input');
+  title.className = 'noteTitle';
+  title.value = n.title || '';
+  title.maxLength = 80;
+  const viewers = document.createElement('span');
+  viewers.className = 'noteViewers';
+  viewers.id = 'noteViewers';
+  viewers.textContent = viewersText(n.viewers);
+  head.appendChild(title);
+  head.appendChild(viewers);
+  const back = document.createElement('button');
+  back.type = 'button'; back.className = 'chipBtn'; back.textContent = '← All notes';
+  back.addEventListener('click', closeNote);
+  head.appendChild(back);
+  card.appendChild(head);
+  const conflict = document.createElement('div');
+  conflict.className = 'noteConflict';
+  conflict.id = 'noteConflict';
+  card.appendChild(conflict);
+  const ta = document.createElement('textarea');
+  ta.className = 'noteText';
+  ta.id = 'noteText';
+  ta.value = n.text || '';
+  ta.placeholder = 'Write together…';
+  card.appendChild(ta);
+  const foot = document.createElement('div');
+  foot.className = 'noteFoot';
+  foot.innerHTML = '<span id="noteSaveState">v' + (n.version || 1) + ' · saved</span>';
+  card.appendChild(foot);
+  el.appendChild(card);
+  noteBase = n.version || 1;
+  pendingRemote = null;
+  const save = () => saveOpenNote(false);
+  ta.addEventListener('input', () => {
+    $('noteSaveState').textContent = 'typing…';
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(save, 900);
+  });
+  title.addEventListener('input', () => {
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(save, 900);
+  });
+  ta.focus();
+}
+function viewersText(v) {
+  v = (v || []).filter(k => k !== myKey());
+  if (!v.length) return '';
+  return '👁 ' + v.map(noteName).join(', ');
+}
+function openNote(id) {
+  if (openNoteId && openNoteId !== id) wsSend({t: 'note.close', note: openNoteId});
+  openNoteId = id;
+  wsSend({t: 'note.open', note: id});
+  clearInterval(noteHeartbeat);
+  noteHeartbeat = setInterval(() => {
+    if (openNoteId) wsSend({t: 'note.open', note: openNoteId});
+  }, 30000);
+  renderNotes();
+}
+function closeNote() {
+  if (openNoteId) { saveOpenNote(true); wsSend({t: 'note.close', note: openNoteId}); }
+  openNoteId = null;
+  clearInterval(noteHeartbeat);
+  renderNotes();
+}
+async function saveOpenNote(immediate) {
+  if (!openNoteId) return;
+  const ta = $('noteText');
+  if (!ta) return;
+  clearTimeout(noteTimer);
+  const titleEl = document.querySelector('.noteTitle');
+  try {
+    const r = await api('/api/livenotes/save', {
+      id: openNoteId, text: ta.value,
+      title: titleEl ? titleEl.value : undefined,
+      base_version: noteBase
+    });
+    const d = await r.json();
+    if (r.status === 409 && d.note) {
+      pendingRemote = d.note;
+      showNoteConflict(d.note);
+      return;
+    }
+    if (!r.ok) { $('noteSaveState').textContent = d.error || 'Save failed'; return; }
+    noteBase = d.version || noteBase;
+    pendingRemote = null;
+    $('noteConflict').style.display = 'none';
+    $('noteSaveState').textContent = 'v' + noteBase + ' · saved';
+    const i = NOTES.findIndex(x => x.id === d.id);
+    if (i >= 0) NOTES[i] = d;
+  } catch (e) {
+    if (!immediate) $('noteSaveState').textContent = 'offline — retrying';
+  }
+}
+function showNoteConflict(remote) {
+  const box = $('noteConflict');
+  if (!box) return;
+  box.style.display = 'flex';
+  box.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = 'Edited by ' + noteName(remote.updated_by) + ' elsewhere.';
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'chipBtn'; btn.textContent = 'Load their version';
+  btn.addEventListener('click', () => {
+    const ta = $('noteText');
+    if (ta) ta.value = remote.text || '';
+    noteBase = remote.version || noteBase;
+    pendingRemote = null;
+    box.style.display = 'none';
+    const i = NOTES.findIndex(x => x.id === remote.id);
+    if (i >= 0) NOTES[i] = remote;
+  });
+  box.appendChild(span);
+  box.appendChild(btn);
+}
+function onNoteEvent(n) {
+  if (!n) return;
+  const i = NOTES.findIndex(x => x.id === n.id);
+  if (i >= 0) NOTES[i] = Object.assign({}, NOTES[i], n);
+  else NOTES.unshift(n);
+  if (openNoteId !== n.id) {
+    if ($('app').dataset.view === 'notes') renderNotes();
+    return;
+  }
+  const ta = $('noteText');
+  if (ta && document.activeElement === ta) {
+    pendingRemote = n; // typing — offer merge instead of clobbering
+    showNoteConflict(n);
+    return;
+  }
+  if (ta) ta.value = n.text || '';
+  noteBase = n.version || noteBase;
+  const st = $('noteSaveState');
+  if (st) st.textContent = 'v' + noteBase + ' · ' + noteName(n.updated_by);
+  const v = $('noteViewers');
+  if (v) v.textContent = viewersText(n.viewers);
+}
+function onNotePresence(nid, viewers) {
+  if (nid === openNoteId) {
+    const v = $('noteViewers');
+    if (v) v.textContent = viewersText(viewers);
+  }
+  const n = NOTES.find(x => x.id === nid);
+  if (n) n.viewers = viewers;
+}
+
+/* ================= voice & video calls ================= */
+let callState = null, ringTimer = null;
+function activeDMKey() {
+  const c = CONVS.find(x => x.id === activeConv);
+  if (!c || c.type !== 'dm') return null;
+  return c;
+}
+function startCall(kind) {
+  if (callState) { toast('Already in a call', false); return; }
+  const c = activeDMKey();
+  if (!c) { toast('Calls work in 1:1 chats', false); return; }
+  if (!wsSend({t: 'call.invite', conv: c.id, kind: kind})) {
+    toast('Live socket offline — wait for 🟢', false);
+    return;
+  }
+  callState = {phase: 'calling', kind: kind, conv: c.id, peerName: c.title};
+  showCallUI('Calling ' + c.title + '…', false);
+}
+function showCallUI(state, incoming) {
+  $('callOverlay').classList.add('on');
+  $('callState').textContent = state;
+  $('callAcceptBtn').style.display = incoming ? '' : 'none';
+  $('callVideos').style.display = (callState && callState.kind === 'video' && callState.pc) ? '' : 'none';
+  updateCallBtns();
+}
+function hideCallUI() {
+  $('callOverlay').classList.remove('on');
+  stopRing();
+}
+function updateCallBtns() {
+  const cs = callState;
+  if (!cs) return;
+  $('callMuteBtn').textContent = cs.muted ? '🔇' : '🎤';
+  $('callMuteBtn').classList.toggle('off', !!cs.muted);
+  $('callCamBtn').textContent = cs.camOff ? '🚫' : '🎥';
+  $('callCamBtn').classList.toggle('off', !!cs.camOff);
+  $('callCamBtn').style.display = cs.kind === 'video' ? '' : 'none';
+}
+function stopRing() { clearInterval(ringTimer); ringTimer = null; }
+function startRing() {
+  stopRing();
+  playNotify();
+  ringTimer = setInterval(playNotify, 2200);
+}
+async function ensureMedia(kind) {
+  const constraints = kind === 'video'
+    ? {audio: true, video: true}
+    : {audio: true, video: false};
+  const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  return stream;
+}
+function makePeer() {
+  // Host candidates only: perfect on LAN, no STUN needed.
+  const pc = new RTCPeerConnection({iceServers: []});
+  pc.onicecandidate = (ev) => {
+    if (ev.candidate && callState && callState.call) {
+      wsSend({t: 'call.signal', call: callState.call.id,
+              signal: {candidate: ev.candidate}});
+    }
+  };
+  pc.ontrack = (ev) => {
+    const remote = $('remoteVideo');
+    if (remote && ev.streams[0]) {
+      remote.srcObject = ev.streams[0];
+      $('callVideos').style.display = callState.kind === 'video' ? '' : 'none';
+    }
+  };
+  return pc;
+}
+async function onCallEvent(d) {
+  const t = d.t;
+  if (t === 'call.error') {
+    toast(d.error || 'Call failed', false);
+    cleanupCall();
+    return;
+  }
+  if (t === 'call.ringing') {
+    if (!callState) return;
+    callState.call = d.call;
+    $('callName').textContent = callState.peerName || '…';
+    showCallUI('Ringing…', false);
+    return;
+  }
+  if (t === 'call.invite') {
+    if (callState) {
+      // Busy: auto-decline so the caller isn't left ringing.
+      wsSend({t: 'call.decline', call: d.call.id});
+      return;
+    }
+    callState = {phase: 'incoming', kind: d.call.kind, call: d.call,
+                 peerName: d.call.from_name || 'Someone'};
+    $('callName').textContent = callState.peerName;
+    showCallUI('Incoming ' + callState.kind + ' call…', true);
+    startRing();
+    return;
+  }
+  if (t === 'call.accepted') {
+    stopRing();
+    if (!callState) return;
+    callState.call = d.call;
+    if (callState.pc) {
+      // Callee side: media + peer already prepared in acceptCall().
+      callState.phase = 'active';
+      callState.startedAt = callState.startedAt || Date.now();
+      $('callState').textContent = callState.kind === 'video' ? 'Connected' : 'Connected · voice only';
+      showCallUI($('callState').textContent, false);
+      tickCallTimer();
+      return;
+    }
+    try {
+      callState.stream = await ensureMedia(callState.kind);
+      $('localVideo').srcObject = callState.stream;
+      callState.pc = makePeer();
+      callState.stream.getTracks().forEach(tr => callState.pc.addTrack(tr, callState.stream));
+      if (callState.phase === 'calling') {
+        // Caller creates the offer.
+        const offer = await callState.pc.createOffer();
+        await callState.pc.setLocalDescription(offer);
+        wsSend({t: 'call.signal', call: callState.call.id, signal: {sdp: offer}});
+      }
+      callState.phase = 'active';
+      callState.startedAt = Date.now();
+      callState.pendingCandidates = [];
+      $('callState').textContent = callState.kind === 'video' ? 'Connected' : 'Connected · voice only';
+      showCallUI($('callState').textContent, false);
+      tickCallTimer();
+    } catch (e) {
+      toast('Microphone/camera blocked', false);
+      endCall();
+    }
+    return;
+  }
+  if (t === 'call.signal') {
+    if (!callState || !callState.pc || !d.signal) return;
+    try {
+      const s = d.signal;
+      if (s.sdp) {
+        await callState.pc.setRemoteDescription(new RTCSessionDescription(s.sdp));
+        if (s.sdp.type === 'offer') {
+          const answer = await callState.pc.createAnswer();
+          await callState.pc.setLocalDescription(answer);
+          wsSend({t: 'call.signal', call: callState.call.id, signal: {sdp: answer}});
+        }
+        for (const cnd of (callState.pendingCandidates || [])) {
+          try { await callState.pc.addIceCandidate(new RTCIceCandidate(cnd)); } catch (e) {}
+        }
+        callState.pendingCandidates = [];
+      } else if (s.candidate) {
+        if (callState.pc.remoteDescription) {
+          await callState.pc.addIceCandidate(new RTCIceCandidate(s.candidate));
+        } else {
+          callState.pendingCandidates = callState.pendingCandidates || [];
+          callState.pendingCandidates.push(s.candidate);
+        }
+      }
+    } catch (e) {}
+    return;
+  }
+  if (t === 'call.ended') {
+    stopRing();
+    const dur = d.duration || 0;
+    if (callState) {
+      const who = (d.reason === 'declined') ? ' declined' : '';
+      toast(d.reason === 'declined' ? 'Call declined' :
+            (dur > 0 ? 'Call ended · ' + fmtDur(dur) : 'Call ended'), true);
+    }
+    cleanupCall();
+    refreshConvs();
+    return;
+  }
+}
+function fmtDur(s) {
+  const m = Math.floor(s / 60), r = s % 60;
+  return m + ':' + String(r).padStart(2, '0');
+}
+function tickCallTimer() {
+  if (!callState || callState.phase !== 'active') return;
+  const pc = callState.pc;
+  const connected = !pc || pc.connectionState === 'connected' ||
+                    pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed';
+  const s = Math.floor((Date.now() - (callState.startedAt || Date.now())) / 1000);
+  if (!connected) {
+    $('callState').textContent = 'Connecting…';
+  } else if (callState.kind === 'video') {
+    $('callState').textContent = 'Connected · ' + fmtDur(s);
+  } else {
+    $('callState').textContent = 'Voice · ' + fmtDur(s);
+  }
+  callState._timer = setTimeout(tickCallTimer, 1000);
+}
+async function acceptCall() {
+  if (!callState || callState.phase !== 'incoming' || !callState.call) return;
+  stopRing();
+  try {
+    callState.stream = await ensureMedia(callState.kind);
+    $('localVideo').srcObject = callState.stream;
+    callState.pc = makePeer();
+    callState.stream.getTracks().forEach(tr => callState.pc.addTrack(tr, callState.stream));
+    callState.phase = 'active';
+    callState.pendingCandidates = [];
+    wsSend({t: 'call.accept', call: callState.call.id});
+    callState.startedAt = Date.now();
+    $('callState').textContent = 'Connecting…';
+    showCallUI('Connecting…', false);
+    tickCallTimer();
+  } catch (e) {
+    toast('Microphone/camera blocked', false);
+    declineCall();
+  }
+}
+function declineCall() {
+  if (callState && callState.call) wsSend({t: 'call.decline', call: callState.call.id});
+  cleanupCall();
+}
+function endCall() {
+  if (callState && callState.call) wsSend({t: 'call.end', call: callState.call.id});
+  cleanupCall();
+  refreshConvs();
+}
+function cleanupCall() {
+  stopRing();
+  try {
+    if (callState && callState.pc) callState.pc.close();
+    if (callState && callState.stream) callState.stream.getTracks().forEach(tr => tr.stop());
+  } catch (e) {}
+  clearTimeout(callState && callState._timer);
+  const rv = $('remoteVideo'), lv = $('localVideo');
+  if (rv) rv.srcObject = null;
+  if (lv) lv.srcObject = null;
+  callState = null;
+  hideCallUI();
+}
+
+function rememberedView() {
+  const v = localStorage.getItem('lanchat_view');
   if (v === 'files' || v === 'profile') return v;
   if (v === 'admin' && USER && USER.role === 'owner') return v;
   return 'chats';
@@ -1921,8 +2753,8 @@ function boot() {
   }
   $('app').classList.add('on');
   renderMe();
-  $('sideFoot').textContent = 'http://' + LAN_IP + ':' + LAN_PORT;
-  $('sideFoot').title = SHARE_DIR;
+  $('sideFootTxt').textContent = 'http://' + LAN_IP + ':' + LAN_PORT;
+  $('sideFootTxt').title = SHARE_DIR;
   if ($('filesPath')) $('filesPath').textContent = SHARE_DIR;
 
   if (USER.role === 'owner') {
