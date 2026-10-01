@@ -7,7 +7,7 @@ A single-file LAN chat and file-sharing app with zero external dependencies (pur
 - **Accounts & roles** — owner creates users (username, display name, email, password); everyone signs in with username or email. Owner-only Admin panel with create / reset-password / delete.
 - **Chats** — 1:1 DMs, group chats, a `General` room for everyone, and private `My Notes` per user.
 - **Messenger behavior** — bubbles, replies, copy, read-more for long messages, per-conversation unread counts, `Delete for me` (per message or whole chat) and owner `Unsend / Delete group for everyone`.
-- **Chat extras** — http/https links auto-linkify, chat pinning to top, browser-tab unread counter + favicon badge, notification sound with mute toggle, dark / light mode.
+- **Chat extras** — http/https links auto-linkify, chat pinning to top, tab unread counter + favicon badge that sticks until the chat is viewed, notification sound with mute toggle, dark / light mode.
 - **Attachments** — private per-conversation chat files (member-only download, image preview) separate from the public Files tab.
 - **Files tab** — drag-and-drop upload, download, delete, human sizes, per-type icons.
 - **Profiles** — display name, email, avatar upload (PNG/JPG/GIF/WEBP, magic-byte checked, 2 MB max).
@@ -34,7 +34,9 @@ First run creates an **owner** account and prints the credentials once — save 
 
 ```bash
 python src/share.py [share_dir] [port]
+python src/share.py serve [share_dir] [port]   # explicit form
 python src/share.py --reset-owner   # mint a fresh owner password
+python src/share.py help            # list all CLI commands
 ```
 
 | Example                          | Meaning                  |
@@ -55,8 +57,27 @@ Environment overrides:
 | `LANCHAT_OWNER_EMAIL` | `owner@localhost`  | first-run owner email            |
 | `LANCHAT_OWNER_PASS` | random, printed once | first-run / reset owner password |
 
-## Project layout
+## CLI reference
 
+Everything also works from the terminal (same defaults, no server needed except `serve`):
+
+```bash
+python src/share.py status
+python src/share.py users list
+python src/share.py users create --username U --name N --email E --password P [--role user]
+python src/share.py users delete --username U [--yes]
+python src/share.py users password --username U --password P
+python src/share.py convs list [--user U]
+python src/share.py send --as USER (--conv ID | --to USER | --group NAME --members a,b) --text TEXT
+python src/share.py read --conv ID [--as USER] [--since N] [--limit N]
+python src/share.py backup [--out FILE]
+python src/share.py restore --in FILE [--yes]
+python src/share.py serve [share_dir] [port]
+```
+
+Global flags for every command: `--data DIR  --share DIR  --port N` (before or after the subcommand). `--text -` reads the message from stdin. Stop the server before `restore`.
+
+## Project layout
 ```text
 shaare/
   src/share.py      # the entire app (server + API + UI)
@@ -71,6 +92,7 @@ Legacy dotfiles (`.lanchat_*.json`) from older layouts auto-migrate into `data/`
 ## Notes
 
 - **Deleting a 1:1 chat** removes it for you only; old messages stay hidden and only new arrivals reappear.
+- **Unread badges** clear only when you actually view the chat — switching tabs, minimizing, or sitting on Files/Profile keeps the tab counter until you return.
 - **Passwords** are stored as salted PBKDF2-SHA256 hashes. Changing your password signs out your other devices; an owner password reset signs that user out everywhere.
 - **Chat history** is capped at 500 messages per conversation (oldest trimmed, orphaned private files cleaned up).
 - Stop with `Ctrl+C`.
