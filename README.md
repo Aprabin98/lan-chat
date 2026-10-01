@@ -80,7 +80,18 @@ Global flags for every command: `--data DIR  --share DIR  --port N` (before or a
 ## Project layout
 ```text
 shaare/
-  src/share.py      # the entire app (server + API + UI)
+  src/share.py      # thin entry shim (keeps `python src/share.py ...` working)
+  src/lanchat/      # the app, one module per concern (stdlib only)
+    config.py       # paths, port, env vars, CLI-mode detection
+    store.py        # shared state, JSON persistence, legacy migration
+    utils.py        # file/formatting helpers
+    users.py        # accounts, passwords, sessions, avatars
+    chat.py         # conversations, messages, pins, hidden state, reads
+    state.py        # load/bootstrap/reset persisted state
+    ui.py           # HTML/CSS/JS template + page rendering
+    server.py       # HTTP handler (pages, JSON API, uploads)
+    cli.py          # terminal commands (status/users/convs/send/...)
+    main.py         # entry flow: CLI dispatch or HTTP server
   share/            # public shared files (Files tab) — runtime, git-ignored
   data/             # private state — runtime, git-ignored
     users.json sessions.json convs.json messages.json
