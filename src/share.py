@@ -1860,9 +1860,25 @@ function playNotify() {
     });
   } catch (e) {}
 }
+function isViewingChats() {
+  // True only when the user is actually looking at the chat pane.
+  // The tab badge must NOT auto-clear while the tab is hidden,
+  // the window is unfocused, or the user is on Files/Profile/Admin.
+  try {
+    if (document.hidden) return false;
+    if (document.hasFocus && !document.hasFocus()) return false;
+    const v = $('app') && $('app').dataset.view;
+    if (v && v !== 'chats') return false;
+    return true;
+  } catch (e) { return true; }
+}
 function updateTabBadge() {
   try {
-    const total = CONVS.reduce((n, c) => n + (c.unread || 0), 0);
+    // Don't count the actively-viewed conversation: like Messenger web,
+    // messages you are already looking at never light up the tab.
+    const viewing = isViewingChats();
+    const total = CONVS.reduce((n, c) =>
+      n + (c.unread || 0) - ((viewing && c.id === activeConv) ? (c.unread || 0) : 0), 0);
     document.title = total > 0 ? '(' + total + ') LAN Share & Messenger' : 'LAN Share & Messenger';
     updateFavicon(total);
     if ('setAppBadge' in navigator) {
@@ -1953,6 +1969,12 @@ function showView(name) {
   try { localStorage.setItem('lanchat_view', name); } catch (e) {}
   if (name === 'files') loadFiles();
   if (name === 'profile') renderProfile();
+  // Coming back to the chat pane means the open conversation is viewed:
+  // flush the pending read receipt so its badge clears now, not a tick later.
+  if (name === 'chats' && activeConv && !document.hidden) {
+    markRead(true);
+    refreshConvs();
+  }
 }
 
 /* ---------------- data loading ---------------- */
@@ -2119,8 +2141,12 @@ async function fetchMsgs(reset, silent) {
   } catch (e) {}
 }
 
-function markRead() {
+function markRead(force) {
   if (!activeConv || lastId <= lastMarked) return;
+  // Never auto-clear the badge while the user can't see the messages.
+  // The unread stays on the server, so the tab badge persists until
+  // the tab is visible again (flushed by the visibility/focus handlers).
+  if (!force && !isViewingChats()) return;
   lastMarked = lastId;
   api('/api/read', {conv: activeConv, last_id: lastId}).catch(() => {});
 }
@@ -2847,6 +2873,19 @@ function wire() {
       }
     } catch (e) {}
   }, {once: true});
+  // Returning to the tab / focusing the window means pending messages
+  // are now viewed: send the withheld read receipt so the tab badge
+  // clears, Messenger-style, instead of lingering.
+  const flushViewed = () => {
+    if (!document.hidden && activeConv && isViewingChats()) {
+      markRead(true);
+      refreshConvs();
+    } else {
+      renderConvs();
+    }
+  };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) flushViewed(); });
+  window.addEventListener('focus', flushViewed);
 
   $('logoutBtn').addEventListener('click', async () => {
     try { await api('/api/logout', {}); } catch (e) {}
