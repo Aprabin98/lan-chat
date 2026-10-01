@@ -19,6 +19,8 @@ Usage:
     python src/share.py /path/to/dir 9000  # custom dir + port
     python src/share.py --reset-owner   # prints a brand-new owner password
                                         # (do this if you lost the first-run one)
+    python src/share.py help            # full CLI: status, users, convs,
+                                        # send, read, backup, restore, serve
 
     Project layout:
         shaare/
@@ -57,6 +59,7 @@ import hashlib
 import secrets
 import threading
 import itertools
+import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, quote, parse_qs, urlparse
 
@@ -74,27 +77,87 @@ _DEFAULT_DATA = os.environ.get("LANCHAT_DATA") or os.path.join(APP_ROOT, "data")
 
 # Parse CLI: [share_dir] [port], with bare-number first arg treated as port
 # (old code treated `share.py 9000` as a directory named "9000").
+# A first arg matching a subcommand (serve/users/send/...) switches to CLI
+# mode instead of being mistaken for a share directory.
+_CLI_SUBCOMMANDS = ("serve", "users", "convs", "send", "read",
+                    "backup", "restore", "status", "help")
+_CLI_FLAGS_WITH_VALUE = ("--data", "--share", "--port")
+
+
+def _find_subcommand(args):
+    """First non-flag token wins; flag values are skipped, so global flags
+    may come before or after the subcommand word."""
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in _CLI_FLAGS_WITH_VALUE:
+            i += 2
+            continue
+        if a.startswith("-"):
+            i += 1
+            continue
+        return (a, i) if a in _CLI_SUBCOMMANDS else (None, -1)
+    return None, -1
+
+
 _cli_args = sys.argv[1:]
+CLI_SUBCOMMAND, _CLI_SUBINDEX = _find_subcommand(_cli_args)
 SHARE_DIR = os.path.abspath(_DEFAULT_SHARE)
 PORT = int(os.environ.get("LANCHAT_PORT") or 8000)
-if len(_cli_args) >= 1:
-    if re.fullmatch(r"\d{2,5}", _cli_args[0] or ""):
-        PORT = int(_cli_args[0])
-    else:
-        SHARE_DIR = os.path.abspath(_cli_args[0])
-if len(_cli_args) >= 2 and re.fullmatch(r"\d{2,5}", _cli_args[1] or ""):
-    PORT = int(_cli_args[1])
-
 DATA_DIR = os.path.abspath(os.environ.get("LANCHAT_DATA") or _DEFAULT_DATA)
-# A custom --data=... / third positional arg may override the data dir.
-for _a in _cli_args:
-    if _a.startswith("--data="):
-        DATA_DIR = os.path.abspath(_a.split("=", 1)[1])
-if len(_cli_args) >= 3 and not _cli_args[2].startswith("--"):
-    DATA_DIR = os.path.abspath(_cli_args[2])
 
-os.makedirs(SHARE_DIR, exist_ok=True)
-os.makedirs(DATA_DIR, exist_ok=True)
+
+def _scan_global_flags(args):
+    """Apply --data/--share/--port in `--k v` and `--k=v` forms (import time)."""
+    global SHARE_DIR, PORT, DATA_DIR
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in _CLI_FLAGS_WITH_VALUE and i + 1 < len(args):
+            v = args[i + 1]
+            if a == "--data":
+                DATA_DIR = os.path.abspath(v)
+            elif a == "--share":
+                SHARE_DIR = os.path.abspath(v)
+            else:
+                try:
+                    PORT = int(v)
+                except ValueError:
+                    pass
+            i += 2
+            continue
+        if a.startswith("--data="):
+            DATA_DIR = os.path.abspath(a.split("=", 1)[1])
+        elif a.startswith("--share="):
+            SHARE_DIR = os.path.abspath(a.split("=", 1)[1])
+        elif a.startswith("--port="):
+            try:
+                PORT = int(a.split("=", 1)[1])
+            except ValueError:
+                pass
+        i += 1
+
+
+if CLI_SUBCOMMAND is None:
+    if len(_cli_args) >= 1:
+        if re.fullmatch(r"\d{2,5}", _cli_args[0] or ""):
+            PORT = int(_cli_args[0])
+        else:
+            SHARE_DIR = os.path.abspath(_cli_args[0])
+    if len(_cli_args) >= 2 and re.fullmatch(r"\d{2,5}", _cli_args[1] or ""):
+        PORT = int(_cli_args[1])
+    # A custom --data=... / third positional arg may override the data dir.
+    for _a in _cli_args:
+        if _a.startswith("--data="):
+            DATA_DIR = os.path.abspath(_a.split("=", 1)[1])
+    if len(_cli_args) >= 3 and not _cli_args[2].startswith("--"):
+        DATA_DIR = os.path.abspath(_cli_args[2])
+    os.makedirs(SHARE_DIR, exist_ok=True)
+    os.makedirs(DATA_DIR, exist_ok=True)
+else:
+    # CLI mode: honour global flags anywhere; never treat the
+    # subcommand word itself as a directory.
+    _scan_global_flags(_cli_args)
 
 # ---------------------------------------------------------------------------
 # State files — private app state lives in data/, never in the public share/
@@ -3693,6 +3756,374 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(f"Uploaded {len(saved)} file(s)".encode())
 
 
+def _refresh_state_paths():
+    """Re-derive file/dir globals after DATA_DIR/SHARE_DIR change (CLI flags)."""
+    global USERS_FILE, SESSIONS_FILE, CONVS_FILE, MESSAGES_FILE
+    global LEGACY_HISTORY, AVATARS_DIR, CHATFILES_DIR
+    USERS_FILE = os.path.join(DATA_DIR, "users.json")
+    SESSIONS_FILE = os.path.join(DATA_DIR, "sessions.json")
+    CONVS_FILE = os.path.join(DATA_DIR, "convs.json")
+    MESSAGES_FILE = os.path.join(DATA_DIR, "messages.json")
+    LEGACY_HISTORY = os.path.join(DATA_DIR, "history.json")
+    AVATARS_DIR = os.path.join(DATA_DIR, "avatars")
+    CHATFILES_DIR = os.path.join(DATA_DIR, "chatfiles")
+
+
+def _parse_kv(args):
+    """Split `--key value` / `--key=value` / `--flag` from positionals."""
+    opts, pos = {}, []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a.startswith("--"):
+            if "=" in a:
+                k, v = a[2:].split("=", 1)
+                opts[k] = v
+            elif i + 1 < len(args) and not args[i + 1].startswith("--"):
+                opts[a[2:]] = args[i + 1]
+                i += 1
+            else:
+                opts[a[2:]] = True
+        else:
+            pos.append(a)
+        i += 1
+    return opts, pos
+
+
+def _apply_global_flags(opts):
+    """Apply --data/--share/--port shared by every subcommand."""
+    global SHARE_DIR, PORT, DATA_DIR
+    changed = False
+    if opts.get("data"):
+        DATA_DIR = os.path.abspath(opts["data"])
+        changed = True
+    if opts.get("share"):
+        SHARE_DIR = os.path.abspath(opts["share"])
+        changed = True
+    if opts.get("port"):
+        try:
+            PORT = int(opts["port"])
+        except (TypeError, ValueError):
+            return "port must be a number"
+    if changed:
+        _refresh_state_paths()
+        os.makedirs(DATA_DIR, exist_ok=True)
+    return None
+
+
+def _require_opt(opts, *names):
+    for n in names:
+        v = opts.get(n)
+        if v and v is not True:
+            return str(v)
+    return None
+
+
+def _fmt_ts(ts):
+    try:
+        return time.strftime("%m-%d %H:%M", time.localtime(float(ts)))
+    except (TypeError, ValueError):
+        return "--"
+
+
+CLI_HELP = """Usage:
+  python src/share.py [share_dir] [port]          serve (legacy form)
+  python src/share.py serve [share_dir] [port]    serve explicitly
+
+  python src/share.py status
+  python src/share.py users list
+  python src/share.py users create --username U --name N --email E --password P [--role user]
+  python src/share.py users delete --username U [--yes]
+  python src/share.py users password --username U --password P
+  python src/share.py convs list [--user U]
+  python src/share.py send --as USER (--conv ID | --to USER | --group NAME --members a,b) --text TEXT
+  python src/share.py read --conv ID [--as USER] [--since N] [--limit N]
+  python src/share.py backup [--out FILE]
+  python src/share.py restore --in FILE [--yes]
+
+Global flags (every command): --data DIR  --share DIR  --port N
+--reset-owner works with the serve form. --text - reads the message from stdin."""
+
+
+def cmd_status(opts, pos):
+    lan = get_lan_ip()
+    with _lock:
+        n_users, n_convs = len(_users), len(_convs)
+        n_msgs = sum(len(b) for b in _messages.values())
+        n_sess = len(_sessions)
+        owner = next((u["username"] for u in _users.values() if u.get("role") == "owner"), "-")
+    print(f"Share dir:  {SHARE_DIR}")
+    print(f"Data dir:   {DATA_DIR}")
+    print(f"Local:      http://localhost:{PORT}")
+    print(f"Network:    http://{lan}:{PORT}")
+    print(f"Users:      {n_users} (owner: {owner})")
+    print(f"Convs:      {n_convs}")
+    print(f"Messages:   {n_msgs}")
+    print(f"Sessions:   {n_sess}")
+    return 0
+
+
+def cmd_users(opts, pos):
+    if not pos:
+        print("users needs an action: list | create | delete | password")
+        return 2
+    action = pos[0]
+    if action == "list":
+        rows = sorted(_users.values(), key=lambda u: u.get("username", ""))
+        if not rows:
+            print("No users yet.")
+            return 0
+        print(f"{'USERNAME':<16}{'NAME':<20}{'EMAIL':<28}ROLE")
+        for u in rows:
+            print(f"{u.get('username',''):<16}{u.get('name',''):<20}"
+                  f"{u.get('email',''):<28}{u.get('role','user')}")
+        return 0
+    if action == "create":
+        username = _require_opt(opts, "username", "user")
+        email = _require_opt(opts, "email")
+        password = _require_opt(opts, "password", "pass")
+        name = _require_opt(opts, "name") or (username or "")
+        role = _require_opt(opts, "role") or "user"
+        if not username or not email or not password:
+            print("Usage: users create --username U --name N --email E --password P [--role user]")
+            return 2
+        if role not in ("user", "owner"):
+            print("role must be user or owner")
+            return 2
+        ok, res = create_user(username, name, email, password, role)
+        if not ok:
+            print(f"Error: {res}")
+            return 1
+        print(f"Created {res['username']} ({res['email']})")
+        return 0
+    if action == "delete":
+        username = _require_opt(opts, "username", "user")
+        if not username:
+            print("Usage: users delete --username U [--yes]")
+            return 2
+        if not opts.get("yes") and not opts.get("y"):
+            try:
+                ans = input(f"Delete user {username}? They are signed out everywhere. [y/N] ")
+            except (EOFError, KeyboardInterrupt):
+                print("\nAborted.")
+                return 1
+            if ans.strip().lower() not in ("y", "yes"):
+                print("Aborted.")
+                return 1
+        ok, res = delete_user(username)
+        if not ok:
+            print(f"Error: {res}")
+            return 1
+        print(f"Deleted {username}")
+        return 0
+    if action == "password":
+        username = _require_opt(opts, "username", "user")
+        password = _require_opt(opts, "password", "pass")
+        if not username or not password:
+            print("Usage: users password --username U --password P")
+            return 2
+        ok, res = set_password(username, password)
+        if not ok:
+            print(f"Error: {res}")
+            return 1
+        drop_user_sessions(username.strip().lower())
+        print(f"Password updated for {username} (signed out everywhere)")
+        return 0
+    print(f"Unknown users action: {action}")
+    return 2
+
+
+def cmd_convs(opts, pos):
+    as_user = (_require_opt(opts, "user", "as") or "").lower()
+    with _lock:
+        items = list(_convs.values())
+    if as_user:
+        items = [c for c in items if can_see(as_user, c)]
+    if not items:
+        print("No conversations.")
+        return 0
+    print(f"{'ID':<24}{'TYPE':<8}{'MESSAGES':<9}TITLE / MEMBERS")
+    for c in sorted(items, key=lambda c: c.get("created", 0)):
+        n = len(_messages.get(c["id"], []))
+        if c.get("type") == "dm":
+            title = "DM: " + ",".join(c.get("members") or [])
+        elif c.get("type") == "notes":
+            title = "Notes: " + ",".join(c.get("members") or [])
+        else:
+            title = c.get("name") or c["id"]
+        print(f"{c['id']:<24}{c.get('type',''):<8}{n:<9}{title}")
+    return 0
+
+
+def cmd_send(opts, pos):
+    sender = (_require_opt(opts, "as", "from", "user") or "").lower()
+    text = _require_opt(opts, "text", "message", "msg")
+    if text == "-":
+        text = sys.stdin.read().strip()
+    if not sender:
+        print("Usage: send --as USER (--conv ID | --to USER | --group NAME --members a,b) --text TEXT")
+        return 2
+    if not text:
+        print("Nothing to send (empty --text).")
+        return 2
+    if len(text) > 2000:
+        text = text[:2000]
+    with _lock:
+        if sender not in _users:
+            print(f"Error: no such user '{sender}'")
+            return 1
+    conv_id = _require_opt(opts, "conv")
+    target = _require_opt(opts, "to", "dm")
+    if conv_id is None and target:
+        target = target.strip().lower()
+        with _lock:
+            if target not in _users:
+                print(f"Error: no such user '{target}'")
+                return 1
+        conv_id = get_or_create_dm(sender, target)
+    group = _require_opt(opts, "group")
+    if conv_id is None and group:
+        members = [m.strip() for m in (_require_opt(opts, "members") or "").split(",") if m.strip()]
+        if not members:
+            print("send --group needs --members user1,user2")
+            return 2
+        conv_id = create_group(group, members, sender)
+        print(f"Created group {conv_id}")
+    if conv_id is None:
+        print("Usage: send --as USER (--conv ID | --to USER | --group NAME --members a,b) --text TEXT")
+        return 2
+    with _lock:
+        conv = _convs.get(conv_id)
+        if not conv or not can_see(sender, conv):
+            print(f"Error: '{sender}' cannot post to '{conv_id}'")
+            return 1
+    msg = add_message(conv_id, sender, text)
+    print(f"Sent #{msg['id']} to {conv_id}")
+    return 0
+
+
+def cmd_read(opts, pos):
+    conv_id = _require_opt(opts, "conv", "id") or (pos[0] if pos else None)
+    if not conv_id:
+        print("Usage: read --conv ID [--as USER] [--since N] [--limit N]")
+        return 2
+    as_user = (_require_opt(opts, "as", "user") or "").lower() or None
+    try:
+        since = int(_require_opt(opts, "since") or 0)
+    except ValueError:
+        print("--since must be a number")
+        return 2
+    try:
+        limit = int(_require_opt(opts, "limit") or 50)
+    except ValueError:
+        print("--limit must be a number")
+        return 2
+    with _lock:
+        conv = _convs.get(conv_id)
+        if not conv:
+            print(f"Error: no such conversation '{conv_id}'")
+            return 1
+        if as_user and not can_see(as_user, conv):
+            print(f"Error: '{as_user}' is not a member of '{conv_id}'")
+            return 1
+    msgs = get_messages(conv_id, since, as_user)
+    msgs = msgs[-limit:] if limit > 0 else msgs
+    if not msgs:
+        print("(no messages)")
+        return 0
+    for m in msgs:
+        who = m.get("name") or m.get("user")
+        if m.get("type") == "file":
+            body = f"📎 {m.get('file')} ({m.get('size_human','')})"
+        else:
+            body = m.get("text", "")
+        print(f"[{m.get('id')}] {_fmt_ts(m.get('ts'))} {who}: {body}")
+    return 0
+
+
+def cmd_backup(opts, pos):
+    out = _require_opt(opts, "out", "o", "file")
+    if not out:
+        out = f"lanchat-backup-{time.strftime('%Y%m%d-%H%M%S')}.zip"
+    out = os.path.abspath(out)
+    os.makedirs(DATA_DIR, exist_ok=True)
+    try:
+        with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
+            for root, _dirs, files in os.walk(DATA_DIR):
+                for f in sorted(files):
+                    if f.endswith(".tmp"):
+                        continue
+                    full = os.path.join(root, f)
+                    zf.write(full, os.path.relpath(full, DATA_DIR))
+    except OSError as e:
+        print(f"Error: cannot write {out}: {e}")
+        return 1
+    print(f"Backed up {DATA_DIR} -> {out}")
+    return 0
+
+
+def cmd_restore(opts, pos):
+    src = _require_opt(opts, "in", "file") or (pos[0] if pos else None)
+    if not src or not os.path.isfile(src):
+        print("Usage: restore --in FILE [--yes]")
+        return 2
+    if not opts.get("yes") and not opts.get("y"):
+        try:
+            ans = input(f"Restore {src} into {DATA_DIR}? Stop the server first. [y/N] ")
+        except (EOFError, KeyboardInterrupt):
+            print("\nAborted.")
+            return 1
+        if ans.strip().lower() not in ("y", "yes"):
+            print("Aborted.")
+            return 1
+    try:
+        with zipfile.ZipFile(src, "r") as zf:
+            for member in zf.namelist():
+                # Zip-slip guard: only relative paths inside DATA_DIR.
+                dest = os.path.normpath(os.path.join(DATA_DIR, member))
+                if dest != DATA_DIR and not dest.startswith(os.path.abspath(DATA_DIR) + os.sep):
+                    print(f"Skipping unsafe entry: {member}")
+                    continue
+                zf.extract(member, DATA_DIR)
+    except (zipfile.BadZipFile, OSError) as e:
+        print(f"Error: cannot restore: {e}")
+        return 1
+    print(f"Restored {src} -> {DATA_DIR} (restart the server)")
+    return 0
+
+
+def run_subcommand(argv):
+    """Dispatch CLI subcommands. argv excludes the subcommand word itself."""
+    if CLI_SUBCOMMAND in (None, "help"):
+        print(CLI_HELP)
+        return 0
+    if CLI_SUBCOMMAND == "serve":
+        return None  # handled by main(): fall through to the server flow
+    opts, pos = _parse_kv(argv)
+    err = _apply_global_flags(opts)
+    if err:
+        print(f"Error: {err}")
+        return 2
+    os.makedirs(DATA_DIR, exist_ok=True)
+    load_state()
+    if CLI_SUBCOMMAND == "status":
+        return cmd_status(opts, pos)
+    if CLI_SUBCOMMAND == "users":
+        return cmd_users(opts, pos)
+    if CLI_SUBCOMMAND == "convs":
+        return cmd_convs(opts, pos)
+    if CLI_SUBCOMMAND == "send":
+        return cmd_send(opts, pos)
+    if CLI_SUBCOMMAND == "read":
+        return cmd_read(opts, pos)
+    if CLI_SUBCOMMAND == "backup":
+        return cmd_backup(opts, pos)
+    if CLI_SUBCOMMAND == "restore":
+        return cmd_restore(opts, pos)
+    print(CLI_HELP)
+    return 2
+
+
 def reset_owner_password():
     """--reset-owner: mint a fresh owner password (returns the credentials)."""
     with _lock:
@@ -3713,6 +4144,31 @@ def reset_owner_password():
 
 
 def main():
+    # CLI mode (users/send/read/...): run the subcommand, never the server.
+    if CLI_SUBCOMMAND not in (None, "serve"):
+        rest = [a for i, a in enumerate(_cli_args) if i != _CLI_SUBINDEX]
+        code = run_subcommand(rest)
+        sys.exit(code)
+    if CLI_SUBCOMMAND == "serve":
+        # `serve [share_dir] [port] [--port N] [--share DIR] [--data DIR]`
+        # (global flags may sit before or after the word `serve`).
+        global SHARE_DIR, PORT, DATA_DIR
+        rest = [a for i, a in enumerate(_cli_args) if i != _CLI_SUBINDEX]
+        opts, pos = _parse_kv(rest)
+        err = _apply_global_flags(opts)
+        if err:
+            print(f"Error: {err}")
+            sys.exit(2)
+        for p in pos:
+            if re.fullmatch(r"\d{2,5}", p or "") and PORT == int(os.environ.get("LANCHAT_PORT") or 8000):
+                PORT = int(p)
+            elif os.path.abspath(SHARE_DIR) == os.path.abspath(_DEFAULT_SHARE):
+                SHARE_DIR = os.path.abspath(p)
+            elif DATA_DIR == os.path.abspath(_DEFAULT_DATA):
+                DATA_DIR = os.path.abspath(p)
+        _refresh_state_paths()
+        os.makedirs(SHARE_DIR, exist_ok=True)
+        os.makedirs(DATA_DIR, exist_ok=True)
     load_state()
 
     owner = reset_owner_password() if RESET_OWNER else None
